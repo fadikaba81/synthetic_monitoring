@@ -154,8 +154,12 @@ The base64 decode happens entirely in memory — no temp files are written insid
 ```
 
 Files
-```
-FileDescriptionec2-setup.shSets up NGINX with mTLS on EC2, generates all certs, prints base64 credentialssynthetic-monitor.jsNew Relic Scripted API monitor scriptShare
-```
+
+- FileDescriptionec2-setup.sh
+- Sets up NGINX with mTLS on EC2, 
+- generates all certs, 
+- prints base64 credentialssynthetic-monitor.js
+- New Relic Scripted API monitor scriptShare
+
 
 JavaScript use [GOT](https://github.com/sindresorhus/got) and please note that New Relic Runtime don't use version v12+ as this version will use ESM (ECMA Script Module) which is not supported in NewRelic Runtime

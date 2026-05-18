@@ -1,5 +1,7 @@
 # synthetic_monitoring
 
+An EC2 instance runs NGINX configured for mutual TLS (mTLS). This means both the server and the client must present a valid certificate during the TLS handshake. Any request without a valid client certificate is rejected before it reaches the application layer.
+Certificate Structure
 
 ```mermaid
 flowchart TD
@@ -39,10 +41,6 @@ flowchart TD
 ## Part 1 — EC2 NGINX Web Server
 
 ### Overview
-
-An EC2 instance runs NGINX configured for mutual TLS (mTLS). This means both the server and the client must present a valid certificate during the TLS handshake. Any request without a valid client certificate is rejected before it reaches the application layer.
-Certificate Structure
-
 Three certificates are generated using openssl, all signed by a self-signed CA:
 FilePurposeca.crtCertificate Authority — signs all other certsserver.crt / server.keyNGINX server identityclient.crt / client.keyClient identity — given to New Relic
 NGINX Configuration.
@@ -161,5 +159,51 @@ Files
 - prints base64 credentialssynthetic-monitor.js
 - New Relic Scripted API monitor scriptShare
 
+## Generate a new certificate 
+- Generated a new server key + CSR with CN="\<domainName>"
+```
+openssl genrsa -out /tmp/<domainName> 2048
+```
+- Added SAN (DNS:\<domainName>, IP:\<IP_ADDRESS>) so modern TLS clients validate correctly
+```
+/etc/nginx/sites-enabled/default 
+server {
+    listen 443 ssl;
+    server_name <domainName>;
+ 
+    ssl_certificate        /etc/nginx/certs/server.crt;
+    ssl_certificate_key    /etc/nginx/certs/server.key;
+ 
+    # mTLS - reject anyone without a cert signed by our CA
+    ssl_client_certificate /etc/nginx/certs/ca.crt;
+    ssl_verify_client      on;
+ 
+    location /health {
+        default_type application/json;
+        return 200 '{"status":"ok","client":"$ssl_client_s_dn"}';
+    }
+}
+ 
+# Port 80 - reject with 400 (no plain HTTP)
+server {
+    listen 80;
+    return 400 "TLS required";
+}
+```
+- Signed it with your existing CA
+```
+sudo openssl x509 -req -in /tmp/order-api.csr \
+  -CA /etc/nginx/certs/ca.crt -CAkey /etc/nginx/certs/ca.key -CAcreateserial \
+  -out /tmp/order-api.crt -days 365 \
+  -extensions v3_alt -extfile /tmp/san.ext
+```
 
+
+- Deployed to /etc/nginx/certs/ and reloaded nginx
+```
+sudo systemctl reload nginx
+```
+
+
+# Notes:
 JavaScript use [GOT](https://github.com/sindresorhus/got) and please note that New Relic Runtime don't use version v12+ as this version will use ESM (ECMA Script Module) which is not supported in NewRelic Runtime
